@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------
+  # DATABASE SERVICE (PostgreSQL)
+  # ----------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: celcom_erp_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_secure_password
+      POSTGRES_DB: celcom_erp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # ----------------------------------------
+  # APP CONTAINER (CELCOM ERP PRO Full Stack)
+  # ----------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celcom_erp_app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://postgres:postgres_secure_password@db:5432/celcom_erp?schema=public
+      - JWT_ACCESS_SECRET=docker_compose_local_dev_secret_key_access_998
+      - JWT_REFRESH_SECRET=docker_compose_local_dev_secret_key_refresh_123
+    depends_on:
+      - db
+
+  # ----------------------------------------
+  # DATABASE VIEWER (pgAdmin)
+  # ----------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: celcom_erp_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@celcomnetworks.co.ke
+      PGADMIN_DEFAULT_PASSWORD: admin_secure_password
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
+    driver: local

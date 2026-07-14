@@ -1,0 +1,6 @@
+{
+  "name": "CELCOM ERP PRO",
+  "description": "Commercial Enterprise Resource Planning (ERP) system for Celcom Networks Limited.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

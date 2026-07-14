@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CELCOM NETWORKS - INVOICE ALERT</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f4f6f8;
+      color: #333333;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+    .header {
+      background-color: #1e293b;
+      padding: 30px;
+      text-align: center;
+      color: #ffffff;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 1px;
+    }
+    .content {
+      padding: 30px;
+    }
+    .details {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 20px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+    .details table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .details table td {
+      padding: 6px 0;
+    }
+    .details table td.label {
+      font-weight: bold;
+      color: #64748b;
+    }
+    .details table td.value {
+      text-align: right;
+      font-weight: bold;
+      color: #0f172a;
+    }
+    .button-container {
+      text-align: center;
+      margin: 30px 0;
+    }
+    .btn {
+      background-color: #2563eb;
+      color: #ffffff;
+      text-decoration: none;
+      padding: 12px 30px;
+      font-weight: bold;
+      border-radius: 6px;
+      display: inline-block;
+    }
+    .footer {
+      background-color: #f1f5f9;
+      padding: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>CELCOM NETWORKS</h1>
+      <p style="margin: 5px 0 0 0; font-size: 14px; color: #94a3b8;">High-Speed Internet Service Provider</p>
+    </div>
+    <div class="content">
+      <p>Dear {{customerName}},</p>
+      <p>This is a notification that a new invoice has been generated for your broadband subscription service <strong>Account #{{accountNumber}}</strong>.</p>
+      
+      <div class="details">
+        <table>
+          <tr>
+            <td class="label">Invoice Number:</td>
+            <td class="value">{{invoiceNumber}}</td>
+          </tr>
+          <tr>
+            <td class="label">Billing Period:</td>
+            <td class="value">{{billingPeriod}}</td>
+          </tr>
+          <tr>
+            <td class="label">Package Plan:</td>
+            <td class="value">{{packageName}}</td>
+          </tr>
+          <tr>
+            <td class="label">Amount Due:</td>
+            <td class="value">KES {{amountDue}}</td>
+          </tr>
+          <tr>
+            <td class="label">Due Date:</td>
+            <td class="value" style="color: #ef4444;">{{dueDate}}</td>
+          </tr>
+        </table>
+      </div>
+
+      <p>Please pay using M-Pesa Paybill number <strong>404098</strong>, using your account number as the reference to guarantee instant reactivation.</p>
+
+      <div class="button-container">
+        <a href="{{invoiceLink}}" class="btn">View & Download Full Invoice PDF</a>
+      </div>
+
+      <p>For assistance, please reply to this email or reach out to our helpdesk lines.</p>
+    </div>
+    <div class="footer">
+      <p>&copy; 2026 Celcom Networks Ltd. Nairobi, Kenya.</p>
+      <p>This is an automated system billing notification. Please do not reply directly to this mail.</p>
+    </div>
+  </div>
+</body>
+</html>

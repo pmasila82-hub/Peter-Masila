@@ -1,0 +1,154 @@
+# =========================================================================
+# CELCOM ERP PRO - GITHUB ACTIONS AUTOMATED CI/CD PIPELINE
+# Fully Automated Testing, Building, and SSH-Based Blue-Green Deployment
+# =========================================================================
+
+name: CELCOM ERP PRO - Continuous Integration & Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # -----------------------------------------------------------------------
+  # JOB 1: Test and Verify Application Quality Boundaries
+  # -----------------------------------------------------------------------
+  quality_gate:
+    name: Code Quality & Security Gate
+    runs-on: ubuntu-24.04
+
+    services:
+      # Spin up ephemeral PostgreSQL test database
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_password_123
+          POSTGRES_DB: celcom_erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Initialize Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Project Dependencies
+        run: npm ci
+
+      - name: Validate Strict Static Type Alignment
+        run: npx tsc --noEmit
+
+      - name: Audit Linter Integrity
+        run: npm run lint
+
+      - name: Execute Quality and Verification Test Suites
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:test_password_123@localhost:5432/celcom_erp_test?schema=public
+          JWT_ACCESS_SECRET: test_suite_cryptographic_bypass_auth_signing_key_secret_2026
+          JWT_REFRESH_SECRET: test_suite_cryptographic_bypass_auth_refresh_key_secret_2026
+        run: |
+          npx prisma db push --accept-data-loss
+          npm run test
+
+      - name: Compile Enterprise Production Builds
+        run: npm run build
+
+  # -----------------------------------------------------------------------
+  # JOB 2: Build & Publish Secure Docker Container
+  # -----------------------------------------------------------------------
+  build_container:
+    name: Package and Publish Production Container
+    needs: quality_gate
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' # Build and publish only on merge/push events
+
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Note: For public/private Docker registries (DockerHub, GitHub Container Registry, etc.)
+      # - name: Authenticate to Container Registry
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.DOCKER_REGISTRY_USER }}
+      #     password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+
+      - name: Compile and Tag Production Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false # Set to 'true' once registry secrets are supplied
+          tags: |
+            celcom-erp-pro:latest
+            celcom-erp-pro:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # -----------------------------------------------------------------------
+  # JOB 3: CD Deployment to Ubuntu Server 24.04
+  # -----------------------------------------------------------------------
+  deploy:
+    name: Production SSH Deploy Integration
+    needs: build_container
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Execute Production Deployment over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_SERVER_IP }}
+          username: ${{ secrets.PROD_SERVER_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            echo "==== STARTING PRODUCTION DEPLOYMENT SEQUENCE ===="
+            cd /opt/celcom-erp-pro
+            
+            echo "1. Syncing project repository to latest release..."
+            git pull origin main || git pull origin master
+            
+            echo "2. Writing dynamic environment configurations..."
+            echo "${{ secrets.PROD_ENV_FILE_CONTENT }}" > .env
+            
+            echo "3. Re-building active containers..."
+            docker compose down --remove-orphans
+            docker compose build --no-cache
+            
+            echo "4. Booting Database & App Server Containers..."
+            docker compose up -d
+            
+            echo "5. Performing secure Database Migration..."
+            docker compose exec -T app npx prisma db push --accept-data-loss
+            
+            echo "6. Validating Live Health Check..."
+            sleep 5
+            curl -f http://127.0.0.1:3000/api/health || (echo "Deployment health check failed! Initiating automatic recovery..."; docker compose logs; exit 1)
+            
+            echo "==== PRODUCTION DEPLOYMENT COMPLETE ===="

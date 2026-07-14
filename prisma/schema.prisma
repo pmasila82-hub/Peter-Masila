@@ -1,0 +1,1036 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// MODULE 1: AUTHENTICATION & ACCESS CONTROL
+// ==========================================
+
+model User {
+  id            String          @id @default(uuid()) @db.Uuid
+  email         String          @unique @db.VarChar(255)
+  passwordHash  String          @map("password_hash") @db.VarChar(255)
+  firstName     String          @map("first_name") @db.VarChar(100)
+  lastName      String          @map("last_name") @db.VarChar(100)
+  phoneNumber   String?         @unique @map("phone_number") @db.VarChar(20)
+  isActive      Boolean         @default(true) @map("is_active")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  userRoles       UserRole[]
+  refreshTokens   RefreshToken[]
+  activeSessions  ActiveSession[]
+  employees       Employee?
+  managedStores   Warehouse[]     @relation("StoreManager")
+  createdQuotes   Quotation[]     @relation("QuoteCreator")
+  postedJournals  JournalEntry[]  @relation("JournalPoster")
+  receivedGRNs    GoodsReceivedNote[] @relation("GRNReceiver")
+  receiptsIssued  Receipt[]       @relation("ReceiptIssuer")
+  inventoryAudits InventoryTransaction[]
+  ticketUpdates   TicketUpdate[]
+  approvedPOs     PurchaseOrder[] @relation("POApprover")
+
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique @db.VarChar(50)
+  description String?          @db.Text
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  slug        String           @unique @db.VarChar(100)
+  description String?          @db.Text
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String @map("user_id") @db.Uuid
+  roleId String @map("role_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique @db.VarChar(512)
+  expiresAt DateTime @map("expires_at")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model ActiveSession {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.VarChar(512)
+  lastActive DateTime @default(now()) @map("last_active")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("active_sessions")
+}
+
+// ==========================================
+// MODULE 2: CUSTOMERS & SUPPLIERS
+// ==========================================
+
+model Customer {
+  id                 String    @id @default(uuid()) @db.Uuid
+  accountCode        String    @unique @map("account_code") @db.VarChar(50)
+  companyName        String?   @map("company_name") @db.VarChar(200)
+  kraPin             String?   @map("kra_pin") @db.VarChar(11)
+  contactPerson      String    @map("contact_person") @db.VarChar(200)
+  email              String    @db.VarChar(255)
+  phone              String    @db.VarChar(20)
+  physicalAddress    String    @map("physical_address") @db.Text
+  creditLimit        Decimal   @default(0.00) @map("credit_limit") @db.Decimal(12, 2)
+  outstandingBalance Decimal   @default(0.00) @map("outstanding_balance") @db.Decimal(12, 2)
+  isActive           Boolean   @default(true) @map("is_active")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  contacts       CustomerContact[]
+  serviceTickets ServiceTicket[]
+  quotations     Quotation[]
+  invoices       Invoice[]
+  payments       Payment[]
+  ispSubscribers ISPSubscriber[]
+  lpos           LocalPurchaseOrder[]
+  projects       Project[]
+  documents      CustomerDocument[]
+  notes          CustomerNote[]
+  history        CustomerHistory[]
+  followUps      FollowUp[]
+  salesOrders    SalesOrder[]
+  creditNotes    CreditNote[]
+
+  @@map("customers")
+}
+
+model CustomerContact {
+  id          String  @id @default(uuid()) @db.Uuid
+  customerId  String  @map("customer_id") @db.Uuid
+  fullName    String  @map("full_name") @db.VarChar(150)
+  email       String? @db.VarChar(255)
+  phone       String  @db.VarChar(20)
+  designation String? @db.VarChar(100)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_contacts")
+}
+
+model Supplier {
+  id               String   @id @default(uuid()) @db.Uuid
+  vendorCode       String   @unique @map("vendor_code") @db.VarChar(50)
+  companyName      String   @map("company_name") @db.VarChar(200)
+  kraPin           String?  @unique @map("kra_pin") @db.VarChar(11)
+  contactPerson    String   @map("contact_person") @db.VarChar(150)
+  email            String   @db.VarChar(255)
+  phone            String   @db.VarChar(20)
+  physicalAddress  String?  @map("physical_address") @db.Text
+  paymentTermsDays Int      @default(30) @map("payment_terms_days")
+  vatNumber        String?  @map("vat_number") @db.VarChar(50)
+  bankDetails      String?  @map("bank_details") @db.Text
+  supplierCategory String?  @map("supplier_category") @db.VarChar(100)
+  status           String   @default("ACTIVE") @db.VarChar(20)
+  rating           Int      @default(5)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  purchaseOrders   PurchaseOrder[]
+  products         Product[]
+  documents        SupplierDocument[]
+  purchaseRequests PurchaseRequest[]
+  supplierInvoices SupplierInvoice[]
+  supplierPayments SupplierPayment[]
+
+  @@map("suppliers")
+}
+
+// ==========================================
+// MODULE 3: PRODUCTS & WAREHOUSING
+// ==========================================
+
+model Brand {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @unique @db.VarChar(100)
+  description String?   @db.Text
+  status      String    @default("ACTIVE") @db.VarChar(20) // ACTIVE, INACTIVE
+  createdAt   DateTime  @default(now()) @map("created_at")
+  products    Product[]
+
+  @@map("brands")
+}
+
+model ProductCategory {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique @db.VarChar(100)
+  description String? @db.Text
+
+  products Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id             String   @id @default(uuid()) @db.Uuid
+  sku            String   @unique @db.VarChar(100)
+  productCode    String?  @unique @map("product_code") @db.VarChar(100)
+  barcode        String?  @db.VarChar(100)
+  name           String   @db.VarChar(200)
+  description    String?  @db.Text
+  categoryId     String   @map("category_id") @db.Uuid
+  brandId        String?  @map("brand_id") @db.Uuid
+  supplierId     String?  @map("supplier_id") @db.Uuid
+  unitOfMeasure  String   @default("PCS") @map("unit_of_measure") @db.VarChar(50)
+  costPrice      Decimal  @default(0.00) @map("cost_price") @db.Decimal(12, 2)
+  sellingPrice   Decimal  @default(0.00) @map("selling_price") @db.Decimal(12, 2)
+  vat            Decimal  @default(16.00) @map("vat") @db.Decimal(5, 2)
+  warrantyPeriod Int      @default(12) @map("warranty_period") // in months
+  isSerialized   Boolean  @default(false) @map("is_serialized")
+  imagePath      String?  @map("image_path") @db.Text
+  reorderLevel   Int      @default(5) @map("reorder_level")
+  maxStockLevel  Int      @default(100) @map("max_stock_level")
+  status         String   @default("ACTIVE") @db.VarChar(20) // ACTIVE, INACTIVE
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  category               ProductCategory        @relation(fields: [categoryId], references: [id])
+  brand                  Brand?                 @relation(fields: [brandId], references: [id])
+  supplier               Supplier?              @relation(fields: [supplierId], references: [id])
+  inventoryItems         InventoryItem[]
+  purchaseOrderItems     PurchaseOrderItem[]
+  grnItems               GRNItem[]
+  quotationItems         QuotationItem[]
+  invoiceItems           InvoiceItem[]
+  salesOrderItems        SalesOrderItem[]
+  inventoryTransactions  InventoryTransaction[]
+  purchaseRequestItems   PurchaseRequestItem[]
+
+  @@map("products")
+}
+
+model Warehouse {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique @db.VarChar(100)
+  location    String? @db.Text
+  stockAreas  String? @map("stock_areas") @db.Text // e.g. "Aisle A, Aisle B"
+  managerId   String? @map("manager_id") @db.Uuid
+
+  manager              User?                  @relation("StoreManager", fields: [managerId], references: [id])
+  inventoryItems       InventoryItem[]
+  goodsReceivedNotes   GoodsReceivedNote[]
+  inventoryTransactions InventoryTransaction[]
+
+  @@map("warehouses")
+}
+
+model InventoryItem {
+  id          String @id @default(uuid()) @db.Uuid
+  warehouseId String @map("warehouse_id") @db.Uuid
+  productId   String @map("product_id") @db.Uuid
+  quantity    Int    @default(0)
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  serialTrackers SerialTracker[]
+
+  @@unique([warehouseId, productId])
+  @@map("inventory_items")
+}
+
+model SerialTracker {
+  id              String   @id @default(uuid()) @db.Uuid
+  inventoryItemId String   @map("inventory_item_id") @db.Uuid
+  serialNumber    String   @unique @map("serial_number") @db.VarChar(100)
+  status          String   @default("AVAILABLE") @db.VarChar(20) // AVAILABLE, ALLOCATED, SOLD, DEFECTIVE
+  transactionRef  String?  @map("transaction_ref") @db.VarChar(100)
+  deviceType      String?  @map("device_type") @db.VarChar(50) // ROUTER, MIKROTIK, UBIQUITI, CAMERA, LAPTOP, ETC
+  brandName       String?  @map("brand_name") @db.VarChar(100)
+  modelName       String?  @map("model_name") @db.VarChar(100)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  warranties      Warranty[]
+
+  @@map("serial_trackers")
+}
+
+model Warranty {
+  id              String   @id @default(uuid()) @db.Uuid
+  serialTrackerId String   @map("serial_tracker_id") @db.Uuid
+  startDate       DateTime @map("start_date")
+  endDate         DateTime @map("end_date")
+  status          String   @default("ACTIVE") @db.VarChar(20) // ACTIVE, EXPIRED, VOIDED
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  serialTracker   SerialTracker @relation(fields: [serialTrackerId], references: [id], onDelete: Cascade)
+
+  @@map("warranties")
+}
+
+model InventoryTransaction {
+  id          String   @id @default(uuid()) @db.Uuid
+  warehouseId String   @map("warehouse_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  quantity    Int
+  type        String   @db.VarChar(30) // STOCK_IN, STOCK_OUT, STOCK_TRANSFER, STOCK_ADJUSTMENT, PURCHASE, SALE, TRANSFER_IN, TRANSFER_OUT, ADJUSTMENT
+  referenceId String?  @map("reference_id") @db.VarChar(100)
+  refDocument String?  @map("ref_document") @db.VarChar(150)
+  reason      String?  @db.Text
+  performedBy String   @map("performed_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
+  user        User      @relation(fields: [performedBy], references: [id])
+
+  @@map("inventory_transactions")
+}
+
+// ==========================================
+// MODULE 4: PURCHASING & GRN
+// ==========================================
+
+model PurchaseOrder {
+  id          String   @id @default(uuid()) @db.Uuid
+  poNumber    String   @unique @map("po_number") @db.VarChar(50)
+  supplierId  String   @map("supplier_id") @db.Uuid
+  status      String   @default("DRAFT") @db.VarChar(20) // DRAFT, APPROVED, RECEIVED, CANCELLED
+  totalAmount Decimal  @default(0.00) @map("total_amount") @db.Decimal(12, 2)
+  approvedBy  String?  @map("approved_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  supplier           Supplier            @relation(fields: [supplierId], references: [id])
+  approver           User?               @relation("POApprover", fields: [approvedBy], references: [id])
+  purchaseOrderItems PurchaseOrderItem[]
+  goodsReceivedNotes GoodsReceivedNote[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String @id @default(uuid()) @db.Uuid
+  purchaseOrderId String @map("purchase_order_id") @db.Uuid
+  productId       String @map("product_id") @db.Uuid
+  quantityOrdered Int    @map("quantity_ordered")
+  unitCost        Decimal @map("unit_cost") @db.Decimal(12, 2)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+
+  @@map("purchase_order_items")
+}
+
+model LocalPurchaseOrder {
+  id               String    @id @default(uuid()) @db.Uuid
+  lpoReference     String    @unique @map("lpo_reference") @db.VarChar(100)
+  customerId       String    @map("customer_id") @db.Uuid
+  amount           Decimal   @db.Decimal(12, 2)
+  issueDate        DateTime  @map("issue_date") @db.Date
+  deliveryDeadline DateTime? @map("delivery_deadline") @db.Date
+  status           String    @default("ACTIVE") @db.VarChar(20) // ACTIVE, FULFILLED, EXPIRED
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("local_purchase_orders")
+}
+
+model GoodsReceivedNote {
+  id              String   @id @default(uuid()) @db.Uuid
+  grnNumber       String   @unique @map("grn_number") @db.VarChar(50)
+  purchaseOrderId String?  @map("purchase_order_id") @db.Uuid
+  deliveryNoteRef String?  @map("delivery_note_ref") @db.VarChar(100)
+  warehouseId     String   @map("warehouse_id") @db.Uuid
+  receivedBy      String   @map("received_by") @db.Uuid
+  receivedAt      DateTime @default(now()) @map("received_at")
+
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  warehouse     Warehouse      @relation(fields: [warehouseId], references: [id])
+  receiver      User           @relation("GRNReceiver", fields: [receivedBy], references: [id])
+  grnItems      GRNItem[]
+
+  @@map("goods_received_notes")
+}
+
+model GRNItem {
+  id               String @id @default(uuid()) @db.Uuid
+  grnId            String @map("grn_id") @db.Uuid
+  productId        String @map("product_id") @db.Uuid
+  quantityReceived Int    @map("quantity_received")
+  quantityAccepted Int    @map("quantity_accepted")
+  quantityRejected Int    @default(0) @map("quantity_rejected")
+
+  grn     GoodsReceivedNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  product Product           @relation(fields: [productId], references: [id])
+
+  @@map("grn_items")
+}
+
+// ==========================================
+// MODULE 5: SALES, BILLING & RECEIPTS
+// ==========================================
+
+model Quotation {
+  id              String   @id @default(uuid()) @db.Uuid
+  quotationNumber String   @unique @map("quotation_number") @db.VarChar(50)
+  customerId      String   @map("customer_id") @db.Uuid
+  subTotal        Decimal  @map("sub_total") @db.Decimal(12, 2)
+  taxAmount       Decimal  @default(0.00) @map("tax_amount") @db.Decimal(12, 2)
+  totalAmount     Decimal  @map("total_amount") @db.Decimal(12, 2)
+  status          String   @default("DRAFT") @db.VarChar(20) // DRAFT, SENT, ACCEPTED, REJECTED
+  validUntil      DateTime @map("valid_until") @db.Date
+  createdBy       String   @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  creator        User            @relation("QuoteCreator", fields: [createdBy], references: [id])
+  quotationItems QuotationItem[]
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  quotationId String  @map("quotation_id") @db.Uuid
+  productId   String  @map("product_id") @db.Uuid
+  quantity    Int
+  unitPrice   Decimal @map("unit_price") @db.Decimal(12, 2)
+  discount    Decimal @default(0.00) @db.Decimal(5, 2)
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@map("quotation_items")
+}
+
+model Invoice {
+  id            String   @id @default(uuid()) @db.Uuid
+  invoiceNumber String   @unique @map("invoice_number") @db.VarChar(50)
+  customerId    String   @map("customer_id") @db.Uuid
+  subTotal      Decimal  @map("sub_total") @db.Decimal(12, 2)
+  taxAmount     Decimal  @default(0.00) @map("tax_amount") @db.Decimal(12, 2)
+  totalAmount   Decimal  @map("total_amount") @db.Decimal(12, 2)
+  amountPaid    Decimal  @default(0.00) @map("amount_paid") @db.Decimal(12, 2)
+  status        String   @default("UNPAID") @db.VarChar(20) // UNPAID, PARTIALLY_PAID, PAID, OVERDUE
+  dueDate       DateTime @map("due_date") @db.Date
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  invoiceItems InvoiceItem[]
+  payments     Payment[]
+  creditNotes  CreditNote[]
+  journal      JournalEntry?
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id        String  @id @default(uuid()) @db.Uuid
+  invoiceId String  @map("invoice_id") @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+  quantity  Int
+  unitPrice Decimal @map("unit_price") @db.Decimal(12, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("invoice_items")
+}
+
+model Payment {
+  id                   String   @id @default(uuid()) @db.Uuid
+  paymentCode          String   @unique @map("payment_code") @db.VarChar(50)
+  customerId           String   @map("customer_id") @db.Uuid
+  invoiceId            String?  @map("invoice_id") @db.Uuid
+  amount               Decimal  @db.Decimal(12, 2)
+  paymentMethod        String   @map("payment_method") @db.VarChar(30) // MPESA, BANK_TRANSFER, CASH, CHEQUE
+  transactionReference String   @unique @map("transaction_reference") @db.VarChar(100)
+  paymentDate          DateTime @default(now()) @map("payment_date")
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  invoice  Invoice? @relation(fields: [invoiceId], references: [id])
+  receipts Receipt?
+  journal  JournalEntry?
+
+  @@map("payments")
+}
+
+model Receipt {
+  id            String   @id @default(uuid()) @db.Uuid
+  receiptNumber String   @unique @map("receipt_number") @db.VarChar(50)
+  paymentId     String   @unique @map("payment_id") @db.Uuid
+  issuedBy      String   @map("issued_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  issuer  User    @relation("ReceiptIssuer", fields: [issuedBy], references: [id])
+
+  @@map("receipts")
+}
+
+model SalesOrder {
+  id                  String   @id @default(uuid()) @db.Uuid
+  orderNumber         String   @unique @map("order_number") @db.VarChar(50)
+  customerId          String   @map("customer_id") @db.Uuid
+  quotationRef        String?  @map("quotation_ref") @db.VarChar(50)
+  status              String   @default("PENDING") @db.VarChar(20) // PENDING, FULFILLED, CANCELLED
+  deliveryDate        DateTime? @map("delivery_date") @db.Date
+  assignedSalesPerson String?  @map("assigned_sales_person") @db.VarChar(100)
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  customer            Customer @relation(fields: [customerId], references: [id])
+  orderItems          SalesOrderItem[]
+
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id           String @id @default(uuid()) @db.Uuid
+  salesOrderId String @map("sales_order_id") @db.Uuid
+  productId    String @map("product_id") @db.Uuid
+  quantity     Int
+  unitPrice    Decimal @map("unit_price") @db.Decimal(12, 2)
+
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id])
+
+  @@map("sales_order_items")
+}
+
+model CreditNote {
+  id               String   @id @default(uuid()) @db.Uuid
+  creditNoteNumber String   @unique @map("credit_note_number") @db.VarChar(50)
+  customerId       String   @map("customer_id") @db.Uuid
+  invoiceId        String?  @map("invoice_id") @db.Uuid
+  amount           Decimal  @db.Decimal(12, 2)
+  reason           String?  @db.Text
+  type             String   @db.VarChar(30) // RETURN, ADJUSTMENT, REFUND
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  customer         Customer @relation(fields: [customerId], references: [id])
+  invoice          Invoice? @relation(fields: [invoiceId], references: [id])
+
+  @@map("credit_notes")
+}
+
+// ==========================================
+// MODULE 6: FINANCE & GENERAL LEDGER
+// ==========================================
+
+model Account {
+  id      String  @id @default(uuid()) @db.Uuid
+  code    String  @unique @db.VarChar(50)
+  name    String  @db.VarChar(150)
+  type    String  @db.VarChar(30) // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  balance Decimal @default(0.00) @db.Decimal(15, 2)
+
+  journalLines JournalLine[]
+
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  entryNumber String   @unique @map("entry_number") @db.VarChar(50)
+  narration   String   @db.Text
+  postedAt    DateTime @default(now()) @map("posted_at")
+  postedBy    String   @map("posted_by") @db.Uuid
+  invoiceId   String?  @unique @map("invoice_id") @db.Uuid
+  paymentId   String?  @unique @map("payment_id") @db.Uuid
+
+  poster       User          @relation("JournalPoster", fields: [postedBy], references: [id])
+  invoice      Invoice?      @relation(fields: [invoiceId], references: [id])
+  payment      Payment?      @relation(fields: [paymentId], references: [id])
+  journalLines JournalLine[]
+
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String @id @default(uuid()) @db.Uuid
+  journalEntryId String @map("journal_entry_id") @db.Uuid
+  accountId      String @map("account_id") @db.Uuid
+  debit          Decimal @default(0.00) @db.Decimal(12, 2)
+  credit         Decimal @default(0.00) @db.Decimal(12, 2)
+
+  entry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account Account      @relation(fields: [accountId], references: [id])
+
+  @@map("journal_lines")
+}
+
+// ==========================================
+// MODULE 7: HR & PAYROLL
+// ==========================================
+
+model Employee {
+  id             String   @id @default(uuid()) @db.Uuid
+  employeeCode   String   @unique @map("employee_code") @db.VarChar(50)
+  userId         String?  @unique @map("user_id") @db.Uuid
+  nationalId     String   @unique @map("national_id") @db.VarChar(30)
+  kraPin         String   @unique @map("kra_pin") @db.VarChar(11)
+  nssfNumber     String?  @unique @map("nssf_number") @db.VarChar(30)
+  nhifShifNumber String?  @unique @map("nhif_shif_number") @db.VarChar(30)
+  bankName       String?  @map("bank_name") @db.VarChar(100)
+  bankAccount    String?  @map("bank_account") @db.VarChar(50)
+  department     String   @db.VarChar(50)
+  designation    String   @db.VarChar(100)
+  dateOfJoining  DateTime @map("date_of_joining") @db.Date
+  isActive       Boolean  @default(true) @map("is_active")
+
+  user             User?              @relation(fields: [userId], references: [id])
+  contracts        EmployeeContract[]
+  payslips         Payslip[]
+  tasksAssigned    Task[]
+  timeLogs         TimeLog[]
+  assetAssignments AssetAssignment[]
+  assignedTickets  ServiceTicket[]
+
+  @@map("employees")
+}
+
+model EmployeeContract {
+  id                String  @id @default(uuid()) @db.Uuid
+  employeeId        String  @map("employee_id") @db.Uuid
+  basicSalary       Decimal @map("basic_salary") @db.Decimal(12, 2)
+  housingAllowance  Decimal @default(0.00) @map("housing_allowance") @db.Decimal(12, 2)
+  transportAllowance Decimal @default(0.00) @map("transport_allowance") @db.Decimal(12, 2)
+  customDeductions  Decimal @default(0.00) @map("custom_deductions") @db.Decimal(12, 2)
+  isActive          Boolean @default(true) @map("is_active")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_contracts")
+}
+
+model PayrollRun {
+  id          String   @id @default(uuid()) @db.Uuid
+  month       Int
+  year        Int
+  status      String   @default("DRAFT") @db.VarChar(20) // DRAFT, APPROVED, PAID
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  payslips Payslip[]
+
+  @@map("payroll_runs")
+}
+
+model Payslip {
+  id                   String @id @default(uuid()) @db.Uuid
+  payrollRunId         String @map("payroll_run_id") @db.Uuid
+  employeeId           String @map("employee_id") @db.Uuid
+  basicPay             Decimal @map("basic_pay") @db.Decimal(12, 2)
+  allowances           Decimal @default(0.00) @db.Decimal(12, 2)
+  grossPay             Decimal @map("gross_pay") @db.Decimal(12, 2)
+  deductionPaye        Decimal @default(0.00) @map("deduction_paye") @db.Decimal(12, 2)
+  deductionNssf        Decimal @default(0.00) @map("deduction_nssf") @db.Decimal(12, 2)
+  deductionNhifShif    Decimal @default(0.00) @map("deduction_nhif_shif") @db.Decimal(12, 2)
+  deductionHousingLevy Decimal @default(0.00) @map("deduction_housing_levy") @db.Decimal(12, 2)
+  otherDeductions      Decimal @default(0.00) @map("other_deductions") @db.Decimal(12, 2)
+  netPay               Decimal @map("net_pay") @db.Decimal(12, 2)
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id])
+
+  @@map("payslips")
+}
+
+// ==========================================
+// MODULE 8: PROJECTS & FIELD OPERATIONS
+// ==========================================
+
+model Project {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @db.VarChar(200)
+  customerId  String    @map("customer_id") @db.Uuid
+  description String?   @db.Text
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  status      String    @default("PLANNING") @db.VarChar(20) // PLANNING, ACTIVE, COMPLETED, CANCELLED
+
+  customer   Customer           @relation(fields: [customerId], references: [id])
+  milestones ProjectMilestone[]
+  tasks      Task[]
+
+  @@map("projects")
+}
+
+model ProjectMilestone {
+  id        String @id @default(uuid()) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  name      String @db.VarChar(150)
+  status    String @default("PENDING") @db.VarChar(20) // PENDING, ACTIVE, COMPLETED
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@map("project_milestones")
+}
+
+model Task {
+  id           String    @id @default(uuid()) @db.Uuid
+  milestoneId  String?   @map("milestone_id") @db.Uuid
+  projectId    String    @map("project_id") @db.Uuid
+  title        String    @db.VarChar(200)
+  description  String?   @db.Text
+  assignedTo   String?   @map("assigned_to") @db.Uuid
+  priority     String    @default("MEDIUM") @db.VarChar(20) // LOW, MEDIUM, HIGH, CRITICAL
+  status       String    @default("TODO") @db.VarChar(20) // TODO, IN_PROGRESS, COMPLETED
+  dueDate      DateTime? @map("due_date") @db.Date
+
+  milestone ProjectMilestone? @relation(fields: [milestoneId], references: [id])
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  employee  Employee?         @relation(fields: [assignedTo], references: [id])
+  timeLogs  TimeLog[]
+
+  @@map("tasks")
+}
+
+model TimeLog {
+  id                  String   @id @default(uuid()) @db.Uuid
+  taskId              String   @map("task_id") @db.Uuid
+  employeeId          String   @map("employee_id") @db.Uuid
+  hoursSpent          Decimal  @map("hours_spent") @db.Decimal(5, 2)
+  logDate             DateTime @default(now()) @map("log_date") @db.Date
+  activityDescription String   @map("activity_description") @db.Text
+
+  task     Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("time_logs")
+}
+
+// ==========================================
+// MODULE 9: ISP SUBSCRIBER OPERATIONS
+// ==========================================
+
+model InternetPackage {
+  id           String  @id @default(uuid()) @db.Uuid
+  name         String  @db.VarChar(100) // e.g. Celcom Fibre Home 15Mbps
+  speedMbps    Int     @map("speed_mbps")
+  bandwidthType String  @default("SHARED") @map("bandwidth_type") @db.VarChar(20) // SHARED, DEDICATED
+  monthlyPrice Decimal @map("monthly_price") @db.Decimal(10, 2)
+
+  subscribers ISPSubscriber[]
+
+  @@map("internet_packages")
+}
+
+model ISPSubscriber {
+  id                  String  @id @default(uuid()) @db.Uuid
+  customerId          String  @map("customer_id") @db.Uuid
+  packageId           String  @map("package_id") @db.Uuid
+  installationAddress String  @map("installation_address") @db.Text
+  gpsCoordinates      String? @map("gps_coordinates") @db.VarChar(100)
+  ipType              String  @default("DYNAMIC") @map("ip_type") @db.VarChar(20) // DYNAMIC, STATIC
+  staticIpAddress     String? @unique @map("static_ip_address") @db.VarChar(45)
+  pppoeUsername       String? @unique @map("pppoe_username") @db.VarChar(100)
+  pppoePassword       String? @map("pppoe_password") @db.VarChar(100)
+  ontMac              String? @unique @map("ont_mac") @db.VarChar(100)
+  oltPort             String? @map("olt_port") @db.VarChar(100)
+  billingCycleDate    Int     @default(1) @map("billing_cycle_date")
+  status              String  @default("SUSPENDED") @db.VarChar(20) // ACTIVE, SUSPENDED, TERMINATED
+
+  customer Customer        @relation(fields: [customerId], references: [id])
+  package  InternetPackage @relation(fields: [packageId], references: [id])
+  tickets  ServiceTicket[]
+
+  @@map("isp_subscribers")
+}
+
+// ==========================================
+// MODULE 10: CUSTOMER SUPPORT & TICKETS
+// ==========================================
+
+model ServiceTicket {
+  id                   String    @id @default(uuid()) @db.Uuid
+  ticketNumber         String    @unique @map("ticket_number") @db.VarChar(50)
+  customerId           String    @map("customer_id") @db.Uuid
+  ispSubscriberId      String?   @map("isp_subscriber_id") @db.Uuid
+  subject              String    @db.VarChar(200)
+  description          String    @db.Text
+  priority             String    @default("MEDIUM") @db.VarChar(20) // LOW, MEDIUM, HIGH, CRITICAL
+  status               String    @default("OPEN") @db.VarChar(20) // OPEN, ASSIGNED, RESOLVED, CLOSED
+  assignedTechnicianId String?   @map("assigned_technician_id") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at")
+  resolvedAt           DateTime? @map("resolved_at")
+
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  subscriber    ISPSubscriber? @relation(fields: [ispSubscriberId], references: [id])
+  technician    Employee?      @relation(fields: [assignedTechnicianId], references: [id])
+  ticketUpdates TicketUpdate[]
+
+  @@map("service_tickets")
+}
+
+model TicketUpdate {
+  id         String   @id @default(uuid()) @db.Uuid
+  ticketId   String   @map("ticket_id") @db.Uuid
+  updatedBy  String   @map("updated_by") @db.Uuid
+  message    String   @db.Text
+  isInternal Boolean  @default(true) @map("is_internal")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  ticket ServiceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [updatedBy], references: [id])
+
+  @@map("ticket_updates")
+}
+
+// ==========================================
+// MODULE 11: COMPANY ASSETS & FLEET
+// ==========================================
+
+model CompanyAsset {
+  id           String   @id @default(uuid()) @db.Uuid
+  assetCode    String   @unique @map("asset_code") @db.VarChar(50)
+  name         String   @db.VarChar(150)
+  serialNumber String?  @unique @map("serial_number") @db.VarChar(100)
+  purchaseDate DateTime @map("purchase_date") @db.Date
+  purchaseCost Decimal  @map("purchase_cost") @db.Decimal(12, 2)
+  status       String   @default("OPERATIONAL") @db.VarChar(20) // OPERATIONAL, UNDER_MAINTENANCE, DEFECTIVE, RETIRED
+
+  maintenances AssetMaintenance[]
+  assignments  AssetAssignment[]
+
+  @@map("company_assets")
+}
+
+model AssetMaintenance {
+  id              String   @id @default(uuid()) @db.Uuid
+  assetId         String   @map("asset_id") @db.Uuid
+  maintenanceDate DateTime @map("maintenance_date") @db.Date
+  description     String   @db.Text
+  cost            Decimal  @default(0.00) @db.Decimal(12, 2)
+  performedBy     String?  @map("performed_by") @db.VarChar(150)
+
+  asset CompanyAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@map("asset_maintenances")
+}
+
+model AssetAssignment {
+  id         String    @id @default(uuid()) @db.Uuid
+  assetId    String    @map("asset_id") @db.Uuid
+  employeeId String    @map("employee_id") @db.Uuid
+  assignedAt DateTime  @default(now()) @map("assigned_at")
+  returnedAt DateTime? @map("returned_at")
+  remarks    String?   @db.Text
+
+  asset    CompanyAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  employee Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("asset_assignments")
+}
+
+// ==========================================
+// MODULE 12: CUSTOMER RELATIONSHIP MANAGEMENT (CRM)
+// ==========================================
+
+model Lead {
+  id          String     @id @default(uuid()) @db.Uuid
+  fullName    String     @map("full_name") @db.VarChar(150)
+  companyName String?    @map("company_name") @db.VarChar(200)
+  email       String     @db.VarChar(255)
+  phone       String     @db.VarChar(20)
+  status      String     @default("NEW") @db.VarChar(30) // NEW, CONTACTED, QUALIFIED, UNQUALIFIED, LOST, CONVERTED
+  source      String     @default("WEBSITE") @db.VarChar(50) // WEBSITE, REFERRAL, COLD_CALL, SOCIAL_MEDIA, CAMPAIGN
+  notes       String?    @db.Text
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  followUps   FollowUp[]
+
+  @@map("leads")
+}
+
+model FollowUp {
+  id            String    @id @default(uuid()) @db.Uuid
+  leadId        String?   @map("lead_id") @db.Uuid
+  customerId    String?   @map("customer_id") @db.Uuid
+  scheduledDate DateTime  @map("scheduled_date")
+  status        String    @default("PENDING") @db.VarChar(20) // PENDING, COMPLETED, RESCHEDULED, CANCELLED
+  type          String    @default("CALL") @db.VarChar(30) // CALL, EMAIL, MEETING, SITE_SURVEY
+  notes         String    @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  lead          Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("follow_ups")
+}
+
+model CustomerDocument {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  title      String   @db.VarChar(200)
+  fileName   String   @map("file_name") @db.VarChar(255)
+  fileSize   Int      @map("file_size")
+  fileType   String   @map("file_type") @db.VarChar(50)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_documents")
+}
+
+model CustomerNote {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  note       String   @db.Text
+  authorName String   @map("author_name") @db.VarChar(150)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_notes")
+}
+
+model CustomerHistory {
+  id           String   @id @default(uuid()) @db.Uuid
+  customerId   String   @map("customer_id") @db.Uuid
+  eventType    String   @map("event_type") @db.VarChar(50) // INVOICE, PAYMENT, TICKET, NOTE, DOC, LEAD_CONVERT, CAMPAIGN
+  eventDetails String   @map("event_details") @db.Text
+  performedBy  String   @map("performed_by") @db.VarChar(150)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_history")
+}
+
+model SupplierDocument {
+  id         String   @id @default(uuid()) @db.Uuid
+  supplierId String   @map("supplier_id") @db.Uuid
+  title      String   @db.VarChar(200)
+  fileName   String   @map("file_name") @db.VarChar(255)
+  fileSize   Int      @map("file_size")
+  fileType   String   @map("file_type") @db.VarChar(50)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@map("supplier_documents")
+}
+
+model PurchaseRequest {
+  id           String   @id @default(uuid()) @db.Uuid
+  requestNo    String   @unique @map("request_no") @db.VarChar(50)
+  department   String   @db.VarChar(100)
+  requestedBy  String   @map("requested_by") @db.VarChar(150)
+  date         DateTime @db.Date
+  requiredDate DateTime @map("required_date") @db.Date
+  reason       String?  @db.Text
+  priority     String   @default("MEDIUM") @db.VarChar(20) // LOW, MEDIUM, HIGH, CRITICAL
+  status       String   @default("DRAFT") @db.VarChar(20) // DRAFT, SUBMITTED, APPROVED, REJECTED, COMPLETED
+  supplierId   String?  @map("supplier_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  supplier     Supplier? @relation(fields: [supplierId], references: [id])
+  items        PurchaseRequestItem[]
+  approvals    ApprovalWorkflow[]
+
+  @@map("purchase_requests")
+}
+
+model PurchaseRequestItem {
+  id                String  @id @default(uuid()) @db.Uuid
+  purchaseRequestId String  @map("purchase_request_id") @db.Uuid
+  productId         String  @map("product_id") @db.Uuid
+  quantity          Int
+  estimatedUnitCost Decimal @map("estimated_unit_cost") @db.Decimal(12, 2)
+
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+  product           Product         @relation(fields: [productId], references: [id])
+
+  @@map("purchase_request_items")
+}
+
+model ApprovalWorkflow {
+  id                String    @id @default(uuid()) @db.Uuid
+  purchaseRequestId String?   @map("purchase_request_id") @db.Uuid
+  role              String    @db.VarChar(100) // EMPLOYEE, DEPARTMENT_MANAGER, PROCUREMENT_OFFICER, MANAGEMENT
+  approverName      String?   @map("approver_name") @db.VarChar(150)
+  status            String    @default("PENDING") @db.VarChar(20) // PENDING, APPROVED, REJECTED
+  comments          String?   @db.Text
+  actionedAt        DateTime? @map("actioned_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+
+  @@map("approval_workflows")
+}
+
+model SupplierInvoice {
+  id           String   @id @default(uuid()) @db.Uuid
+  invoiceNo    String   @unique @map("invoice_no") @db.VarChar(50)
+  supplierId   String   @map("supplier_id") @db.Uuid
+  grnReference String?  @map("grn_reference") @db.VarChar(100)
+  date         DateTime @db.Date
+  dueDate      DateTime @map("due_date") @db.Date
+  amount       Decimal  @db.Decimal(12, 2)
+  vat          Decimal  @default(16.00) @db.Decimal(5, 2)
+  status       String   @default("UNPAID") @db.VarChar(20) // UNPAID, PAID, PARTIALLY_PAID, OVERDUE
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  payments     SupplierPayment[]
+
+  @@map("supplier_invoices")
+}
+
+model SupplierPayment {
+  id                String   @id @default(uuid()) @db.Uuid
+  paymentNo         String   @unique @map("payment_no") @db.VarChar(50)
+  supplierId        String   @map("supplier_id") @db.Uuid
+  supplierInvoiceId String?  @map("supplier_invoice_id") @db.Uuid
+  paymentDate       DateTime @map("payment_date") @db.Date
+  amount            Decimal  @db.Decimal(12, 2)
+  paymentMethod     String   @map("payment_method") @db.VarChar(30) // CASH, BANK, MPESA, CHEQUE
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  supplier          Supplier @relation(fields: [supplierId], references: [id])
+  invoice           SupplierInvoice? @relation(fields: [supplierInvoiceId], references: [id])
+
+  @@map("supplier_payments")
+}
+

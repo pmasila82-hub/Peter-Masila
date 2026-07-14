@@ -1,0 +1,51 @@
+# =========================================================================
+# CELCOM ERP PRO - PROMETHEUS PRODUCTION MONITORING SYSTEM
+# Core Configuration for Metrics Scraping and Infrastructure Audits
+# =========================================================================
+
+global:
+  scrape_interval: 15s     # Scrape metrics every 15 seconds by default
+  evaluation_interval: 15s # Evaluate alert rules every 15 seconds
+  scrape_timeout: 10s      # Timeout before marking a scrape target offline
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            # - "alertmanager:9093"
+
+# Alert rule files loading path
+rule_files:
+  # - "alerts.yml"
+
+scrape_configs:
+  # -------------------------------------------------------------------------
+  # Scrape 1: Prometheus self-telemetry
+  # -------------------------------------------------------------------------
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # -------------------------------------------------------------------------
+  # Scrape 2: CELCOM ERP Express Backend (via express-prom-bundle or similar)
+  # -------------------------------------------------------------------------
+  - job_name: "celcom_erp_app"
+    metrics_path: "/api/metrics" # Secure metrics endpoint configured on App Server
+    scheme: "http"
+    static_configs:
+      - targets: ["app:3000"]
+
+  # -------------------------------------------------------------------------
+  # Scrape 3: Ubuntu host server node-exporter (Hardware stats)
+  # -------------------------------------------------------------------------
+  - job_name: "node_exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # -------------------------------------------------------------------------
+  # Scrape 4: PostgreSQL Database Stats Exporter
+  # -------------------------------------------------------------------------
+  - job_name: "postgres_exporter"
+    static_configs:
+      - targets: ["postgres-exporter:9187"]

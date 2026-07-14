@@ -1,0 +1,165 @@
+{
+  "companyProfile": {
+    "name": "Celcom Networks Limited",
+    "address": "6th Floor, Westlands Commercial Centre, Ring Road Westlands, Nairobi, Kenya",
+    "kraPin": "P051234567A",
+    "contactEmail": "info@celcomnetworks.co.ke",
+    "contactPhone": "+254 20 1234567",
+    "website": "www.celcomnetworks.co.ke",
+    "vatRate": 16.0,
+    "currency": "KES"
+  },
+  "branches": [
+    {
+      "id": "br_nbo_hq",
+      "code": "NBO-HQ",
+      "name": "Nairobi Head Office",
+      "location": "6th Floor, Westlands Commercial Centre, Nairobi",
+      "contactPerson": "James Kamau",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "br_mba_01",
+      "code": "MBA-01",
+      "name": "Mombasa Branch",
+      "location": "Nyali Complex, Ground Floor, Mombasa",
+      "contactPerson": "Fatima Omar",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "br_ksm_01",
+      "code": "KSM-01",
+      "name": "Kisumu Branch",
+      "location": "Mega Plaza, 2nd Floor, Kisumu",
+      "contactPerson": "David Ochieng",
+      "status": "INACTIVE"
+    }
+  ],
+  "auditLogs": [
+    {
+      "id": "aud_001",
+      "userId": "usr_admin_001",
+      "userEmail": "admin@celcomnetworks.co.ke",
+      "action": "USER_LOGIN",
+      "module": "AUTHENTICATION",
+      "details": "Successful administrative login from IP 197.248.31.82",
+      "timestamp": "2026-07-13T21:40:15.123Z"
+    },
+    {
+      "id": "aud_002",
+      "userId": "usr_admin_001",
+      "userEmail": "admin@celcomnetworks.co.ke",
+      "action": "GPON_OLT_TUNE",
+      "module": "TECHNICAL_OPS",
+      "details": "Modified splitter ratio configuration on OLT Westlands-G1",
+      "timestamp": "2026-07-13T21:55:00.000Z"
+    },
+    {
+      "id": "aud_003",
+      "userId": "usr_fin_001",
+      "userEmail": "accounting@celcomnetworks.co.ke",
+      "action": "PAYROLL_COMPUTATION",
+      "module": "FINANCE_HR",
+      "details": "Processed corporate payroll slips for July 2026",
+      "timestamp": "2026-07-13T22:12:44.981Z"
+    },
+    {
+      "id": "aud_004",
+      "userId": "usr_admin_001",
+      "userEmail": "admin@celcomnetworks.co.ke",
+      "action": "COMPANY_SETTINGS_UPDATE",
+      "module": "ADMINISTRATION",
+      "details": "Updated corporate contact phone number and VAT configurations",
+      "timestamp": "2026-07-13T22:20:10.555Z"
+    }
+  ],
+  "sandboxRolePermissions": {
+    "SUPER_ADMIN": [
+      "users:create",
+      "users:read",
+      "users:update",
+      "users:delete",
+      "roles:manage",
+      "roles:read",
+      "subscribers:create",
+      "subscribers:read",
+      "subscribers:update",
+      "subscribers:delete",
+      "billing:manage",
+      "billing:read",
+      "olt:manage",
+      "olt:read",
+      "payroll:manage",
+      "payroll:read",
+      "reports:read"
+    ],
+    "MANAGING_DIRECTOR": [
+      "users:create",
+      "users:read",
+      "users:update",
+      "users:delete",
+      "roles:manage",
+      "roles:read",
+      "subscribers:create",
+      "subscribers:read",
+      "subscribers:update",
+      "subscribers:delete",
+      "billing:manage",
+      "billing:read",
+      "olt:manage",
+      "olt:read",
+      "payroll:manage",
+      "payroll:read",
+      "reports:read"
+    ],
+    "ACCOUNTANT": [
+      "users:read",
+      "subscribers:read",
+      "billing:manage",
+      "billing:read",
+      "payroll:read",
+      "reports:read"
+    ],
+    "HR_MANAGER": [
+      "users:create",
+      "users:read",
+      "users:update",
+      "payroll:manage",
+      "payroll:read",
+      "reports:read"
+    ],
+    "SALES": [
+      "subscribers:create",
+      "subscribers:read",
+      "subscribers:update",
+      "billing:read",
+      "reports:read"
+    ],
+    "PROCUREMENT": [
+      "reports:read"
+    ],
+    "STORE_MANAGER": [
+      "reports:read"
+    ],
+    "TECHNICIAN": [
+      "subscribers:read",
+      "subscribers:update",
+      "olt:manage",
+      "olt:read"
+    ],
+    "CUSTOMER_SUPPORT": [
+      "subscribers:read",
+      "subscribers:update",
+      "olt:read"
+    ],
+    "VIEWER": [
+      "users:read",
+      "roles:read",
+      "subscribers:read",
+      "billing:read",
+      "olt:read",
+      "payroll:read",
+      "reports:read"
+    ]
+  }
+}
